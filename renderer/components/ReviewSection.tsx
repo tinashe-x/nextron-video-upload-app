@@ -1,173 +1,227 @@
-import React, { useState } from "react";
-import { Button, Box, TextField, Typography, Card, CardContent, IconButton, Divider } from "@mui/material";
-import StarRating from "./StarRating";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
+// renderer/components/ReviewSection.tsx
+import React, { useState, useEffect } from "react";
+import { 
+  Box, 
+  TextField, 
+  Button, 
+  Typography, 
+  FormControl, 
+  InputLabel, 
+  Select, 
+  MenuItem 
+} from "@mui/material";
+import { getVideos, saveReview, getReviews, addReply } from "../utils/db";
 
-export default function ReviewSection() {
-  const [reviews, setReviews] = useState([]);
-  const [rating, setRating] = useState(5);
+// Define a props interface for the review section.
+interface ReviewSectionProps {
+  videoId?: string;  // Optional video ID. If provided, this review section is pre-associated with that movie.
+}
+
+const ReviewSection: React.FC<ReviewSectionProps> = ({ videoId: initialVideoId }) => {
+  // State for movies (uploaded videos)
+  const [movies, setMovies] = useState<any[]>([]);
+  const [selectedMovieId, setSelectedMovieId] = useState<string>(initialVideoId || "");
+  const [selectedMovieTitle, setSelectedMovieTitle] = useState<string>("");
+
+  // State for the new review
+  const [rating, setRating] = useState<number>(5);
   const [reviewText, setReviewText] = useState("");
-  const [movieTitle, setMovieTitle] = useState("");
-  const [replyText, setReplyText] = useState(""); 
 
-  // Add a new review
-  const addReview = () => {
-    if (!reviewText.trim() || !movieTitle.trim()) return;
-    setReviews([...reviews, { rating, text: reviewText, movieTitle, id: Date.now(), replies: [] }]);
+  // State for reviews (all reviews from Firestore)
+  const [reviews, setReviews] = useState<any[]>([]);
+
+  // For reply functionality: store reply text and toggle reply input per review
+  const [replyTexts, setReplyTexts] = useState<{ [key: string]: string }>({});
+  const [showReplyInput, setShowReplyInput] = useState<{ [key: string]: boolean }>({});
+
+  // Fetch the list of movies (uploaded videos) on mount
+  useEffect(() => {
+    const fetchMovies = async () => {
+      const moviesData = await getVideos();
+      setMovies(moviesData);
+      if (!initialVideoId && moviesData.length > 0) {
+        // Default to the first movie if no videoId prop is provided.
+        setSelectedMovieId(moviesData[0].id);
+        setSelectedMovieTitle(moviesData[0].title);
+      } else if (initialVideoId) {
+        const movie = moviesData.find((m: any) => m.id === initialVideoId);
+        if (movie) {
+          setSelectedMovieTitle(movie.title);
+        }
+      }
+    };
+    fetchMovies();
+  }, [initialVideoId]);
+
+  // Fetch reviews (all reviews in the "reviews" collection)
+  const fetchReviews = async () => {
+    const reviewsData = await getReviews();
+    setReviews(reviewsData);
+  };
+
+  useEffect(() => {
+    fetchReviews();
+  }, []);
+
+  // Handle submitting a new review.
+  const handleReviewSubmit = async () => {
+    if (!selectedMovieId || !reviewText.trim()) return;
+    const reviewData = {
+      movieId: selectedMovieId,
+      movieTitle: selectedMovieTitle,
+      rating,
+      text: reviewText,
+      createdAt: new Date().toISOString(),
+      replies: []  // initialize with no replies
+    };
+    await saveReview(reviewData);
     setReviewText("");
-    setMovieTitle("");
+    fetchReviews(); // refresh the review list
   };
 
-  // Edit an existing review
-  const editReview = (id, newText) => {
-    setReviews(reviews.map((r) => (r.id === id ? { ...r, text: newText } : r)));
-  };
-
-  // Delete a review
-  const deleteReview = (id) => {
-    setReviews(reviews.filter((r) => r.id !== id));
-  };
-
-  // Add a reply to a review
-  const addReply = (id) => {
-    if (!replyText.trim()) return;
-    setReviews(
-      reviews.map((r) =>
-        r.id === id
-          ? { ...r, replies: [...r.replies, { text: replyText, rating: 5, id: Date.now() }] }
-          : r
-      )
-    );
-    setReplyText(""); // Clear reply text after adding the reply
-  };
-
-  // Toggle reply input visibility
-  const toggleReplyInput = (id) => {
-    const updatedReviews = reviews.map((r) =>
-      r.id === id ? { ...r, isReplyInputVisible: !r.isReplyInputVisible } : r
-    );
-    setReviews(updatedReviews);
+  // Handle submitting a reply for a specific review.
+  const handleReplySubmit = async (reviewId: string) => {
+    const replyText = replyTexts[reviewId];
+    if (!replyText || !replyText.trim()) return;
+    const replyData = {
+      text: replyText,
+      createdAt: new Date().toISOString()
+    };
+    await addReply(reviewId, replyData);
+    setReplyTexts(prev => ({ ...prev, [reviewId]: "" }));
+    setShowReplyInput(prev => ({ ...prev, [reviewId]: false }));
+    fetchReviews();
   };
 
   return (
-    <Box sx={{ padding: 3, maxWidth: 600, margin: "auto" }}>
-      <Typography variant="h4" gutterBottom>
-        Write a Review
-      </Typography>
+    <Box mt={4}>
+      <Typography variant="h6">Submit a Review</Typography>
+      
+      {/* If no videoId was provided via props, allow the user to select one */}
+      {!initialVideoId && (
+        <Box mt={2}>
+          <FormControl fullWidth>
+            <InputLabel id="movie-select-label">Movie</InputLabel>
+            <Select
+              labelId="movie-select-label"
+              value={selectedMovieId}
+              label="Movie"
+              onChange={(e) => {
+                const movieId = e.target.value as string;
+                setSelectedMovieId(movieId);
+                const movie = movies.find(m => m.id === movieId);
+                setSelectedMovieTitle(movie ? movie.title : "");
+              }}
+            >
+              {movies.map((movie) => (
+                <MenuItem key={movie.id} value={movie.id}>
+                  {movie.title}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Box>
+      )}
 
-      {/* Movie Title Input */}
-      <TextField
-        label="Video Title"
-        variant="outlined"
-        fullWidth
-        value={movieTitle}
-        onChange={(e) => setMovieTitle(e.target.value)}
-        sx={{ marginY: 2 }}
-      />
+      {/* Input for rating */}
+      <Box mt={2}>
+        <TextField
+          label="Rating (1-5)"
+          type="number"
+          value={rating}
+          onChange={(e) => setRating(parseInt(e.target.value))}
+          inputProps={{ min: 1, max: 5 }}
+          fullWidth
+        />
+      </Box>
 
-      {/* Rating and Review Input */}
-      <StarRating rating={rating} setRating={setRating} />
-      <TextField
-        label="Write your review"
-        variant="outlined"
-        multiline
-        rows={4}
-        fullWidth
-        value={reviewText}
-        onChange={(e) => setReviewText(e.target.value)}
-        sx={{ marginY: 2 }}
-      />
-      <Button variant="contained" onClick={addReview} disabled={!reviewText.trim() || !movieTitle.trim()}>
-        Submit Review
-      </Button>
-       
-      <Divider sx={{ marginY: 3 }} />
-      <Typography variant="h4" gutterBottom>
-        Reviews
-      </Typography>
+      {/* Input for review text */}
+      <Box mt={2}>
+        <TextField
+          label="Your Review"
+          multiline
+          rows={3}
+          value={reviewText}
+          onChange={(e) => setReviewText(e.target.value)}
+          fullWidth
+        />
+      </Box>
 
-      {/* Display Reviews */}
-      {reviews.length > 0 ? (
-        reviews.map((review) => (
-          <Card key={review.id} sx={{ marginBottom: 2 }}>
-            <CardContent>
-              <Typography variant="h6">{review.movieTitle}</Typography>
-              <Typography variant="h6">Rating: ⭐ {review.rating}</Typography>
-              <Typography variant="body1" sx={{ marginBottom: 1 }}>
-                {review.text}
+      {/* Submit review button */}
+      <Box mt={2}>
+        <Button variant="contained" color="primary" onClick={handleReviewSubmit}>
+          Submit Review
+        </Button>
+      </Box>
+
+      {/* List reviews for the selected movie */}
+      <Box mt={4}>
+        <Typography variant="h6">Reviews for {selectedMovieTitle}</Typography>
+        {reviews
+          .filter(review => review.movieId === selectedMovieId)
+          .map(review => (
+            <Box key={review.id} mt={2} p={2} border="1px solid #ccc" borderRadius={2}>
+              <Typography variant="subtitle2">
+                {review.movieTitle} - Rating: {review.rating}
+              </Typography>
+              <Typography variant="body1">{review.text}</Typography>
+              <Typography variant="caption" color="textSecondary">
+                {new Date(review.createdAt).toLocaleString()}
               </Typography>
 
-              {/* Edit/Delete Review */}
-              <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                <IconButton
-                  onClick={() => editReview(review.id, prompt("Edit your review", review.text) || review.text)}
+              {/* Reply button */}
+              <Box mt={1}>
+                <Button
+                  variant="text"
+                  size="small"
+                  onClick={() =>
+                    setShowReplyInput(prev => ({ ...prev, [review.id]: !prev[review.id] }))
+                  }
                 >
-                  <EditIcon />
-                </IconButton>
-                <IconButton onClick={() => deleteReview(review.id)}>
-                  <DeleteIcon />
-                </IconButton>
+                  {showReplyInput[review.id] ? "Cancel Reply" : "Reply"}
+                </Button>
               </Box>
 
-              {/* Reply Button */}
-              <Button
-                variant="outlined"
-                sx={{ marginTop: -8 }}
-                onClick={() => toggleReplyInput(review.id)}
-              >
-                {review.isReplyInputVisible ? "Cancel Reply" : "Reply"}
-              </Button>
-              
-              {/* Reply Input (Visible when toggled) */}
-              {review.isReplyInputVisible && (
-                <Box sx={{ marginTop: 2 }}>
-                  <StarRating rating={5} setRating={(newRating) => setRating(newRating)} />
+              {/* Reply input (if toggled) */}
+              {showReplyInput[review.id] && (
+                <Box mt={1} display="flex" gap={1}>
                   <TextField
-                    label="Write your reply"
-                    variant="outlined"
-                    multiline
-                    rows={2}
+                    label="Your Reply"
+                    value={replyTexts[review.id] || ""}
+                    onChange={(e) =>
+                      setReplyTexts({ ...replyTexts, [review.id]: e.target.value })
+                    }
                     fullWidth
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    sx={{ marginY: 1 }}
                   />
                   <Button
-                    variant="outlined"
-                    onClick={() => addReply(review.id)}
-                    disabled={!replyText.trim()}
+                    variant="contained"
+                    size="small"
+                    onClick={() => handleReplySubmit(review.id)}
                   >
-                    Submit Reply
+                    Submit
                   </Button>
                 </Box>
               )}
 
-              {/* Display Replies */}
-              {review.replies.length > 0 && (
-                <Box sx={{ marginTop: 2, paddingLeft: 2 }}>
-                  {review.replies.map((reply) => (
-                    <Card key={reply.id} sx={{ marginBottom: 1 }}>
-                      <CardContent>
-                        <Typography variant="body2" color="textSecondary">
-                          Reply: {reply.text}
-                        </Typography>
-                        <Typography variant="body2" color="textSecondary">
-                          Reply Rating: ⭐ {reply.rating}
-                        </Typography>
-                      </CardContent>
-                    </Card>
+              {/* Display replies, if any */}
+              {review.replies && review.replies.length > 0 && (
+                <Box mt={2} ml={2}>
+                  <Typography variant="subtitle2">Replies:</Typography>
+                  {review.replies.map((reply: any, index: number) => (
+                    <Box key={index} mt={1} p={1} border="1px solid #ddd" borderRadius={1}>
+                      <Typography variant="body2">{reply.text}</Typography>
+                      <Typography variant="caption" color="textSecondary">
+                        {new Date(reply.createdAt).toLocaleString()}
+                      </Typography>
+                    </Box>
                   ))}
                 </Box>
               )}
-            </CardContent>
-          </Card>
-        ))
-      ) : (
-        <Typography variant="body2" color="textSecondary">
-          No reviews yet.
-        </Typography>
-      )}
+            </Box>
+          ))}
+      </Box>
     </Box>
   );
-}
+};
+
+export default ReviewSection;
