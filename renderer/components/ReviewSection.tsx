@@ -1,20 +1,26 @@
 // renderer/components/ReviewSection.tsx
 import React, { useState, useEffect } from "react";
-import { 
-  Box, 
-  TextField, 
-  Button, 
-  Typography, 
-  FormControl, 
-  InputLabel, 
-  Select, 
-  MenuItem 
+import {
+  Box,
+  TextField,
+  Button,
+  Typography,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem
 } from "@mui/material";
-import { getVideos, saveReview, getReviews, addReply } from "../utils/db";
+import {
+  getVideos,
+  saveReview,
+  getReviews,
+  addReply
+  // (Other functions like editReview, deleteReview, etc. can remain imported if needed)
+} from "../utils/db";
 
 // Define a props interface for the review section.
 interface ReviewSectionProps {
-  videoId?: string;  // Optional video ID. If provided, this review section is pre-associated with that movie.
+  videoId?: string; // Optional video ID. If provided, this review section is pre-associated with that movie.
 }
 
 const ReviewSection: React.FC<ReviewSectionProps> = ({ videoId: initialVideoId }) => {
@@ -33,6 +39,9 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ videoId: initialVideoId }
   // For reply functionality: store reply text and toggle reply input per review
   const [replyTexts, setReplyTexts] = useState<{ [key: string]: string }>({});
   const [showReplyInput, setShowReplyInput] = useState<{ [key: string]: boolean }>({});
+
+  // State for sort option
+  const [sortOption, setSortOption] = useState<string>("mostRecent");
 
   // Fetch the list of movies (uploaded videos) on mount
   useEffect(() => {
@@ -72,7 +81,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ videoId: initialVideoId }
       rating,
       text: reviewText,
       createdAt: new Date().toISOString(),
-      replies: []  // initialize with no replies
+      replies: [] // initialize with no replies
     };
     await saveReview(reviewData);
     setReviewText("");
@@ -83,7 +92,9 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ videoId: initialVideoId }
   const handleReplySubmit = async (reviewId: string) => {
     const replyText = replyTexts[reviewId];
     if (!replyText || !replyText.trim()) return;
+    // Create a reply object with a unique id.
     const replyData = {
+      id: new Date().getTime().toString(), // simple unique id based on timestamp
       text: replyText,
       createdAt: new Date().toISOString()
     };
@@ -92,6 +103,24 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ videoId: initialVideoId }
     setShowReplyInput(prev => ({ ...prev, [reviewId]: false }));
     fetchReviews();
   };
+
+  // Filter reviews for the selected movie.
+  const filteredReviews = reviews.filter(review => review.movieId === selectedMovieId);
+
+  // Sort the filtered reviews based on the sort option.
+  const sortedReviews = [...filteredReviews].sort((a, b) => {
+    if (sortOption === "mostRecent") {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    } else if (sortOption === "oldest") {
+      return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    } else if (sortOption === "highestRating") {
+      return b.rating - a.rating;
+    } else if (sortOption === "lowestRating") {
+      return a.rating - b.rating;
+    } else {
+      return 0;
+    }
+  });
 
   return (
     <Box mt={4}>
@@ -154,12 +183,31 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ videoId: initialVideoId }
         </Button>
       </Box>
 
-      {/* List reviews for the selected movie */}
+      {/* Filter / Sort Options */}
+      <Box mt={4}>
+        <FormControl fullWidth>
+          <InputLabel id="sort-select-label">Sort Reviews</InputLabel>
+          <Select
+            labelId="sort-select-label"
+            value={sortOption}
+            label="Sort Reviews"
+            onChange={(e) => setSortOption(e.target.value as string)}
+          >
+            <MenuItem value="mostRecent">Most Recent</MenuItem>
+            <MenuItem value="oldest">Oldest</MenuItem>
+            <MenuItem value="highestRating">Highest Rating</MenuItem>
+            <MenuItem value="lowestRating">Lowest Rating</MenuItem>
+          </Select>
+        </FormControl>
+      </Box>
+
+      {/* List sorted reviews for the selected movie */}
       <Box mt={4}>
         <Typography variant="h6">Reviews for {selectedMovieTitle}</Typography>
-        {reviews
-          .filter(review => review.movieId === selectedMovieId)
-          .map(review => (
+        {sortedReviews.length === 0 ? (
+          <Typography>No reviews yet.</Typography>
+        ) : (
+          sortedReviews.map(review => (
             <Box key={review.id} mt={2} p={2} border="1px solid #ccc" borderRadius={2}>
               <Typography variant="subtitle2">
                 {review.movieTitle} - Rating: {review.rating}
@@ -198,7 +246,7 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ videoId: initialVideoId }
                     size="small"
                     onClick={() => handleReplySubmit(review.id)}
                   >
-                    Submit
+                    Submit Reply
                   </Button>
                 </Box>
               )}
@@ -218,7 +266,8 @@ const ReviewSection: React.FC<ReviewSectionProps> = ({ videoId: initialVideoId }
                 </Box>
               )}
             </Box>
-          ))}
+          ))
+        )}
       </Box>
     </Box>
   );
