@@ -1,4 +1,3 @@
-// renderer/components/VideoUpload.tsx
 import React, { useState } from "react";
 import { saveVideo } from "../utils/db";
 import {

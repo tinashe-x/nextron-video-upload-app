@@ -1,4 +1,3 @@
-// renderer/utils/db.ts
 import { db } from "./firebase";
 import { collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, arrayUnion } from "firebase/firestore";
 import { Video } from "../components/types";
@@ -27,7 +26,7 @@ export const getReviews = async () => {
 // Add a reply to an existing review
 export const addReply = async (reviewId: string, replyData: any) => {
   try {
-    // Ensure the replyData includes a unique id.
+    // Make sure the replyData includes a unique id.
     if (!replyData.id) {
       replyData.id = new Date().getTime().toString(); // simple unique id based on timestamp
     }

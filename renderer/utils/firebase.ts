@@ -6,7 +6,6 @@ import { getFirestore, collection, addDoc, getDocs } from "firebase/firestore";
 // https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
     apiKey: "AIzaSyD0Rioo5GqMU24smWX2s4sOdFZpZ5zZIf4",
     authDomain: "nextron-video-app-c39c4.firebaseapp.com",

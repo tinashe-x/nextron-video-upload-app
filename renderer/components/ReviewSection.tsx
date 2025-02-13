@@ -1,4 +1,3 @@
-// renderer/components/ReviewSection.tsx
 import React, { useState, useEffect } from "react";
 import {
   Box,

@@ -1,4 +1,3 @@
-// renderer/pages/home.jsx
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button, Container, Typography, Box, Grid, Card, CardContent, CardMedia } from "@mui/material";
